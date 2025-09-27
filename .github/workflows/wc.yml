@@ -1,0 +1,89 @@
+name: CI/CD Pipeline with Minikube and TLS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: srirammanyam/wisecow:latest
+
+  deploy-to-minikube:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Start Minikube
+        uses: medyagh/setup-minikube@v0.0.18
+        with:
+          driver: docker
+
+      - name: Verify cluster status
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Enable ingress addon
+        run: |
+          minikube addons enable ingress
+          kubectl -n ingress-nginx rollout status deployment ingress-nginx-controller --timeout=600s
+
+      - name: Generate self-signed TLS cert
+        run: |
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout tls.key -out tls.crt \
+            -subj "/CN=wisecow.local/O=wisecow"
+          kubectl create secret tls wisecow-tls --cert=tls.crt --key=tls.key
+
+      - name: Deploy Wisecow app
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/ingress.yaml
+          kubectl rollout status deployment wisecow-deployment --timeout=300s
+
+      - name: Diagnostics (on failure)
+        if: failure()
+        run: |
+          echo "=== Nodes ==="
+          kubectl get nodes -o wide
+          echo "=== Pods (all namespaces) ==="
+          kubectl get pods -A -o wide
+          echo "=== Recent events ==="
+          kubectl get events -A --sort-by=.lastTimestamp | tail -n 200 || true
+          echo "=== Describe deployment ==="
+          kubectl describe deploy wisecow-deployment || true
+          echo "=== Describe pods (app=wisecow) ==="
+          kubectl describe pods -l app=wisecow || true
+          echo "=== Container logs (tail) ==="
+          kubectl logs -l app=wisecow --all-containers --tail=200 || true
+
+      - name: Test HTTPS access
+        run: |
+          MINIKUBE_IP=$(minikube ip)
+          echo "$MINIKUBE_IP wisecow.local" | sudo tee -a /etc/hosts
+          curl -k --retry 10 --retry-delay 5 https://wisecow.local
+
