@@ -20,7 +20,7 @@ Small repo that:
 ├─ problem-2/
 │  ├─ SHM.sh      # System Health Monitor (bash)
 │  └─ AHC.py      # App Health Checker (python)
-└─ .github/workflows/ci-cd.yml
+└─ .github/workflows/wc.yml
 ```
 
 ---
@@ -114,7 +114,3 @@ docker run -p 4499:4499 srirammanyam/wisecow:latest
 
 ---
 
-## Notes
-
-- Keep the repo **Public** for review; Docker creds live in **GitHub Secrets**.
-- No TLS keys are committed—certs are generated during runs.
