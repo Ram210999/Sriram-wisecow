@@ -87,3 +87,14 @@ jobs:
           echo "$MINIKUBE_IP wisecow.local" | sudo tee -a /etc/hosts
           curl -k --retry 10 --retry-delay 5 https://wisecow.local
 
+      - name: Show Service URL
+        run: |
+          echo "Wisecow HTTPS Service URL:"
+          minikude service wisecow-service --url
+
+      - name: Verify Service Response
+        run: |
+          URL=$(minikube service wisecow-service --url)
+          echo "Testing Wisecow endpoint: $URL"
+          curl -k $URL
+
