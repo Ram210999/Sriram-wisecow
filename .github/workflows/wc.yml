@@ -87,6 +87,15 @@ jobs:
           echo "$MINIKUBE_IP wisecow.local" | sudo tee -a /etc/hosts
           curl -k --retry 10 --retry-delay 5 https://wisecow.local
 
+      - name: Run System Health Monitoring Script
+        run: |
+          chmod +x problem-2/SHM.sh
+          bash problem-2/SHM.sh
+
+      - name: Run Application Health Checker
+        run: |
+          python3 problem-2/AHC.py https://wisecow.local --insecure
+
       - name: Show ingress details
         run: |
           echo "Ingress information:"
